@@ -1,0 +1,6 @@
+{
+  "name": "Bank Aplikasi dan Pelaporan RSUD Al-Mulk",
+  "description": "Portal terpusat (application hub) akses seluruh aplikasi digital internal dan sistem pelaporan resmi pemerintah yang digunakan di RSUD Al-Mulk Kota Sukabumi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
