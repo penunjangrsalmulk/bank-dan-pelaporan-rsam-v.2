@@ -817,6 +817,115 @@ export async function getAdminUsers(): Promise<AppUser[]> {
   return raw ? JSON.parse(raw) : INITIAL_ADMIN_USERS;
 }
 
+export async function syncAllLocalDataToSupabase(): Promise<{ success: boolean; message: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, message: 'Supabase client belum terkonfigurasi. Masukkan URL dan Anon Key terlebih dahulu.' };
+  }
+
+  try {
+    const profile = await getWebsiteProfile();
+    const social = await getSocialLinks();
+    const hero = await getHeroMedia();
+    const internal = await getInternalApplications();
+    const official = await getOfficialApplications();
+
+    // 1. Upsert Profile
+    if (profile) {
+      await client.from('website_profile').upsert({
+        id: profile.id || 'profile-rsud-almulk-001',
+        hospital_name: profile.hospital_name,
+        tagline: profile.tagline,
+        description: profile.description,
+        logo_url: profile.logo_url,
+        address: profile.address,
+        phone: profile.phone,
+        emergency_phone: profile.emergency_phone,
+        email: profile.email,
+        website_url: profile.website_url,
+        service_hours: profile.service_hours,
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // 2. Upsert Social Links
+    if (social.length > 0) {
+      await client.from('social_links').upsert(
+        social.map(s => ({
+          id: s.id,
+          platform: s.platform,
+          title: s.title,
+          url: s.url,
+          icon: s.icon,
+          is_active: s.is_active,
+          display_order: s.display_order
+        }))
+      );
+    }
+
+    // 3. Upsert Hero Media
+    if (hero.length > 0) {
+      await client.from('hero_media').upsert(
+        hero.map(h => ({
+          id: h.id,
+          title: h.title,
+          description: h.description,
+          media_type: h.media_type,
+          media_url: h.media_url,
+          is_active: h.is_active,
+          display_order: h.display_order,
+          overlay_opacity: h.overlay_opacity
+        }))
+      );
+    }
+
+    // 4. Upsert Internal Apps
+    if (internal.length > 0) {
+      await client.from('internal_applications').upsert(
+        internal.map(a => ({
+          id: a.id,
+          name: a.name,
+          slug: a.slug,
+          description: a.description,
+          category: a.category,
+          app_url: a.app_url,
+          logo_url: a.logo_url,
+          is_featured: a.is_featured,
+          status: a.status,
+          display_order: a.display_order,
+          click_count: a.click_count || 0
+        }))
+      );
+    }
+
+    // 5. Upsert Official Apps
+    if (official.length > 0) {
+      await client.from('official_reporting_apps').upsert(
+        official.map(a => ({
+          id: a.id,
+          name: a.name,
+          slug: a.slug,
+          description: a.description,
+          institution: a.institution,
+          category: a.category,
+          app_url: a.app_url,
+          logo_url: a.logo_url,
+          is_featured: a.is_featured,
+          status: a.status,
+          display_order: a.display_order,
+          click_count: a.click_count || 0
+        }))
+      );
+    }
+
+    notifyDataChange('all');
+    return { success: true, message: 'Seluruh data profil, hero media, dan aplikasi berhasil disinkronkan ke Supabase Cloud.' };
+  } catch (err: any) {
+    console.error('Error syncing to Supabase:', err);
+    return { success: false, message: err.message || 'Gagal sinkronisasi data ke Supabase.' };
+  }
+}
+
 export function resetToInitialSeedData(): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(KEYS.PROFILE, JSON.stringify(INITIAL_WEBSITE_PROFILE));
