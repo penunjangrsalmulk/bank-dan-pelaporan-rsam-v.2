@@ -136,8 +136,17 @@ ALTER TABLE public.hero_media ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
 ALTER TABLE public.hero_media ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 
 -- ==========================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- ROW LEVEL SECURITY (RLS) POLICIES & PERMISSIONS
 -- ==========================================================
+
+-- Grant full table permissions to anon, authenticated, and service_role
+GRANT ALL ON TABLE public.website_profile TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.social_links TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.hero_media TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.internal_applications TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.official_reporting_apps TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.application_clicks TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.audit_logs TO anon, authenticated, service_role;
 
 ALTER TABLE public.website_profile ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.social_links ENABLE ROW LEVEL SECURITY;
@@ -147,45 +156,74 @@ ALTER TABLE public.official_reporting_apps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_clicks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Website Profile Policies
+-- 1. Website Profile Policies
 DROP POLICY IF EXISTS "Public can view website profile" ON public.website_profile;
+DROP POLICY IF EXISTS "Admins can update website profile" ON public.website_profile;
 DROP POLICY IF EXISTS "Allow all website profile" ON public.website_profile;
-CREATE POLICY "Public can view website profile" ON public.website_profile FOR SELECT USING (true);
-CREATE POLICY "Allow all website profile" ON public.website_profile FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read and write website_profile" ON public.website_profile;
+CREATE POLICY "Allow public read and write website_profile" ON public.website_profile FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Social Links Policies
+-- 2. Social Links Policies
 DROP POLICY IF EXISTS "Public can view active social links" ON public.social_links;
+DROP POLICY IF EXISTS "Admins can manage social links" ON public.social_links;
 DROP POLICY IF EXISTS "Allow all social links" ON public.social_links;
-CREATE POLICY "Public can view active social links" ON public.social_links FOR SELECT USING (true);
-CREATE POLICY "Allow all social links" ON public.social_links FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read and write social_links" ON public.social_links;
+CREATE POLICY "Allow public read and write social_links" ON public.social_links FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Hero Media Policies
+-- 3. Hero Media Policies
 DROP POLICY IF EXISTS "Public can view active hero media" ON public.hero_media;
+DROP POLICY IF EXISTS "Admins can manage hero media" ON public.hero_media;
 DROP POLICY IF EXISTS "Allow all hero media" ON public.hero_media;
-CREATE POLICY "Public can view active hero media" ON public.hero_media FOR SELECT USING (true);
-CREATE POLICY "Allow all hero media" ON public.hero_media FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read and write hero_media" ON public.hero_media;
+CREATE POLICY "Allow public read and write hero_media" ON public.hero_media FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Internal Applications Policies
+-- 4. Internal Applications Policies
 DROP POLICY IF EXISTS "Public can view active internal apps" ON public.internal_applications;
+DROP POLICY IF EXISTS "Admins can manage internal apps" ON public.internal_applications;
 DROP POLICY IF EXISTS "Allow all internal apps" ON public.internal_applications;
-CREATE POLICY "Public can view active internal apps" ON public.internal_applications FOR SELECT USING (true);
-CREATE POLICY "Allow all internal apps" ON public.internal_applications FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read and write internal_applications" ON public.internal_applications;
+CREATE POLICY "Allow public read and write internal_applications" ON public.internal_applications FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Official Reporting Apps Policies
+-- 5. Official Reporting Apps Policies
 DROP POLICY IF EXISTS "Public can view active official apps" ON public.official_reporting_apps;
+DROP POLICY IF EXISTS "Admins can manage official apps" ON public.official_reporting_apps;
 DROP POLICY IF EXISTS "Allow all official apps" ON public.official_reporting_apps;
-CREATE POLICY "Public can view active official apps" ON public.official_reporting_apps FOR SELECT USING (true);
-CREATE POLICY "Allow all official apps" ON public.official_reporting_apps FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read and write official_reporting_apps" ON public.official_reporting_apps;
+CREATE POLICY "Allow public read and write official_reporting_apps" ON public.official_reporting_apps FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Application Clicks Policies
+-- 6. Application Clicks Policies
 DROP POLICY IF EXISTS "Public can log application clicks" ON public.application_clicks;
+DROP POLICY IF EXISTS "Admins can read application clicks" ON public.application_clicks;
 DROP POLICY IF EXISTS "Allow all application clicks" ON public.application_clicks;
-CREATE POLICY "Public can log application clicks" ON public.application_clicks FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow all application clicks" ON public.application_clicks FOR ALL USING (true);
+DROP POLICY IF EXISTS "Allow public read and write application_clicks" ON public.application_clicks;
+CREATE POLICY "Allow public read and write application_clicks" ON public.application_clicks FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Audit Logs Policies
+-- 7. Audit Logs Policies
 DROP POLICY IF EXISTS "Allow all audit logs" ON public.audit_logs;
-CREATE POLICY "Allow all audit logs" ON public.audit_logs FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Admins can read audit logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "System/Admins can write audit logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Allow public read and write audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow public read and write audit_logs" ON public.audit_logs FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- Function for atomic click increment
+CREATE OR REPLACE FUNCTION increment_click_count(target_table text, target_id text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF target_table = 'internal_applications' THEN
+    UPDATE public.internal_applications
+    SET click_count = COALESCE(click_count, 0) + 1
+    WHERE id = target_id;
+  ELSIF target_table = 'official_reporting_apps' THEN
+    UPDATE public.official_reporting_apps
+    SET click_count = COALESCE(click_count, 0) + 1
+    WHERE id = target_id;
+  END IF;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION increment_click_count(text, text) TO anon, authenticated, service_role;
 
 -- ==========================================================
 -- SEED DATA INSERTION (RSUD AL-MULK OFFICIAL DATASET)

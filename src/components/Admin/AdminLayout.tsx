@@ -41,6 +41,7 @@ import { AnalyticsManager } from './AnalyticsManager';
 import { UserManagement } from './UserManagement';
 import { AuditLogViewer } from './AuditLogViewer';
 import { DatabaseSetupManager } from './DatabaseSetupManager';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import Swal from 'sweetalert2';
 
 interface AdminLayoutProps {
@@ -164,6 +165,25 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Supabase Cloud Connection Status Badge */}
+        <div className="px-4 py-2.5 mx-3 mt-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isSupabaseConfigured() ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <div className="truncate">
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Database:</div>
+              <div className="text-[11px] font-semibold text-slate-200 truncate">
+                {isSupabaseConfigured() ? 'Supabase Cloud' : 'Penyimpanan Lokal'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => { setActiveTab('database-setup'); setSidebarOpen(false); }}
+            className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 shrink-0 cursor-pointer transition-colors"
+          >
+            {isSupabaseConfigured() ? 'Status' : 'Sinkron'}
+          </button>
         </div>
 
         {/* Navigation Items (Scrollable) */}

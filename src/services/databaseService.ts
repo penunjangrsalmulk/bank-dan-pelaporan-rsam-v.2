@@ -51,11 +51,48 @@ export function notifyDataChange(entity: string) {
   }
 }
 
+let realtimeSubscribed = false;
+export function initSupabaseRealtimeListener(onUpdate: () => void): (() => void) | null {
+  const client = getSupabaseClient();
+  if (!client || realtimeSubscribed) return null;
+
+  try {
+    const channel = client
+      .channel('public:portal-db-sync')
+      .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+        console.log('Realtime change from Supabase received:', payload);
+        onUpdate();
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          realtimeSubscribed = true;
+          console.log('Supabase Realtime subscribed successfully');
+        }
+      });
+
+    return () => {
+      channel.unsubscribe();
+      realtimeSubscribed = false;
+    };
+  } catch (err) {
+    console.warn('Realtime subscription notice:', err);
+    return null;
+  }
+}
+
 export function subscribeToDataChanges(callback: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
   const handler = () => callback();
   window.addEventListener(DATA_UPDATED_EVENT, handler);
-  return () => window.removeEventListener(DATA_UPDATED_EVENT, handler);
+
+  const cleanupRealtime = initSupabaseRealtimeListener(() => {
+    callback();
+  });
+
+  return () => {
+    window.removeEventListener(DATA_UPDATED_EVENT, handler);
+    if (cleanupRealtime) cleanupRealtime();
+  };
 }
 
 /**
@@ -185,10 +222,24 @@ export async function getWebsiteProfile(): Promise<WebsiteProfile> {
 export async function updateWebsiteProfile(profile: WebsiteProfile, userEmail?: string): Promise<WebsiteProfile> {
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('website_profile').upsert(profile);
-    } catch (e) {
-      console.warn('Failed to update Supabase website profile', e);
+    const payload = {
+      id: profile.id || 'profile-rsud-almulk-001',
+      hospital_name: profile.hospital_name,
+      tagline: profile.tagline,
+      description: profile.description,
+      logo_url: profile.logo_url,
+      address: profile.address,
+      phone: profile.phone,
+      emergency_phone: profile.emergency_phone,
+      email: profile.email,
+      website_url: profile.website_url,
+      service_hours: profile.service_hours,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await client.from('website_profile').upsert(payload);
+    if (error) {
+      console.error('Supabase updateWebsiteProfile error:', error);
+      throw new Error(`Gagal menyimpan profil ke Supabase: ${error.message}`);
     }
   }
 
@@ -225,10 +276,21 @@ export async function getSocialLinks(): Promise<SocialLink[]> {
 export async function saveSocialLinks(links: SocialLink[], userEmail?: string): Promise<SocialLink[]> {
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('social_links').upsert(links);
-    } catch (e) {
-      console.warn('Failed to upsert social links', e);
+    const payload = links.map(s => ({
+      id: s.id,
+      platform: s.platform,
+      title: s.title,
+      url: s.url,
+      icon: s.icon,
+      is_active: s.is_active ?? true,
+      display_order: s.display_order,
+      created_at: s.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await client.from('social_links').upsert(payload);
+    if (error) {
+      console.error('Supabase saveSocialLinks error:', error);
+      throw new Error(`Gagal menyimpan tautan medsos ke Supabase: ${error.message}`);
     }
   }
 
@@ -489,10 +551,25 @@ export async function saveHeroMedia(mediaList: HeroMedia[], userEmail?: string):
   // 3. Save to Supabase (if connected)
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('hero_media').upsert(mediaList);
-    } catch (e) {
-      console.warn('Failed to upsert hero media', e);
+    const payload = mediaList.map(h => ({
+      id: h.id,
+      title: h.title,
+      description: h.description,
+      media_type: h.media_type,
+      media_url: (h.media_url && h.media_url.startsWith('data:') && h.media_url.length > 200000)
+        ? 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=1920&auto=format&fit=crop&q=80'
+        : h.media_url,
+      thumbnail_url: h.thumbnail_url || null,
+      is_active: h.is_active ?? true,
+      display_order: h.display_order,
+      overlay_opacity: h.overlay_opacity ?? 65,
+      created_at: h.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await client.from('hero_media').upsert(payload);
+    if (error) {
+      console.error('Supabase saveHeroMedia error:', error);
+      throw new Error(`Gagal menyimpan media hero ke Supabase: ${error.message}`);
     }
   }
 
@@ -515,10 +592,10 @@ export async function deleteHeroMedia(id: string, userEmail?: string): Promise<v
   // 3. Delete from Supabase (if connected)
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('hero_media').delete().eq('id', id);
-    } catch (e) {
-      console.warn('Failed delete hero media from Supabase', e);
+    const { error } = await client.from('hero_media').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteHeroMedia error:', error);
+      throw new Error(`Gagal menghapus hero media dari Supabase: ${error.message}`);
     }
   }
 
@@ -590,10 +667,26 @@ export async function getInternalApplications(): Promise<InternalApplication[]> 
 export async function saveInternalApplication(app: InternalApplication, userEmail?: string): Promise<InternalApplication> {
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('internal_applications').upsert(app);
-    } catch (e) {
-      console.warn('Failed to upsert internal app', e);
+    const payload = {
+      id: app.id,
+      name: app.name,
+      slug: app.slug,
+      description: app.description,
+      category: app.category,
+      unit: app.unit || 'Seksi Penunjang RS',
+      app_url: app.app_url,
+      logo_url: app.logo_url,
+      is_featured: Boolean(app.is_featured),
+      status: app.status || 'aktif',
+      display_order: app.display_order || 1,
+      click_count: app.click_count || 0,
+      created_at: app.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await client.from('internal_applications').upsert(payload);
+    if (error) {
+      console.error('Supabase saveInternalApplication error:', error);
+      throw new Error(`Gagal menyimpan ke Supabase Cloud: ${error.message}`);
     }
   }
 
@@ -612,17 +705,17 @@ export async function saveInternalApplication(app: InternalApplication, userEmai
 }
 
 export async function deleteInternalApplication(id: string, userEmail?: string): Promise<void> {
-  const list = await getInternalApplications();
-  const filtered = list.filter(a => a.id !== id);
-
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('internal_applications').delete().eq('id', id);
-    } catch (e) {
-      console.warn('Failed to delete internal app from Supabase', e);
+    const { error } = await client.from('internal_applications').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteInternalApplication error:', error);
+      throw new Error(`Gagal menghapus dari Supabase Cloud: ${error.message}`);
     }
   }
+
+  const list = await getInternalApplications();
+  const filtered = list.filter(a => a.id !== id);
 
   safeSetLocalStorage(KEYS.INTERNAL, filtered);
   await logAudit('DELETE', 'internal_applications', id, null, null, userEmail);
@@ -638,10 +731,24 @@ export async function reorderInternalApplications(orderedIds: string[], userEmai
 
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('internal_applications').upsert(updated);
-    } catch (e) {
-      console.warn('Failed to reorder internal apps in Supabase', e);
+    const payload = updated.map(a => ({
+      id: a.id,
+      name: a.name,
+      slug: a.slug,
+      description: a.description,
+      category: a.category,
+      unit: a.unit || 'Seksi Penunjang RS',
+      app_url: a.app_url,
+      logo_url: a.logo_url,
+      is_featured: Boolean(a.is_featured),
+      status: a.status || 'aktif',
+      display_order: a.display_order,
+      click_count: a.click_count || 0,
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await client.from('internal_applications').upsert(payload);
+    if (error) {
+      console.warn('Failed to reorder internal apps in Supabase', error);
     }
   }
 
@@ -677,10 +784,26 @@ export async function getOfficialApplications(): Promise<OfficialReportingApp[]>
 export async function saveOfficialApplication(app: OfficialReportingApp, userEmail?: string): Promise<OfficialReportingApp> {
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('official_reporting_apps').upsert(app);
-    } catch (e) {
-      console.warn('Failed to upsert official app in Supabase', e);
+    const payload = {
+      id: app.id,
+      name: app.name,
+      slug: app.slug,
+      description: app.description,
+      institution: app.institution || 'Kementerian Kesehatan RI',
+      category: app.category || 'Pelaporan Rutin',
+      app_url: app.app_url,
+      logo_url: app.logo_url,
+      is_featured: Boolean(app.is_featured),
+      status: app.status || 'aktif',
+      display_order: app.display_order || 1,
+      click_count: app.click_count || 0,
+      created_at: app.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await client.from('official_reporting_apps').upsert(payload);
+    if (error) {
+      console.error('Supabase saveOfficialApplication error:', error);
+      throw new Error(`Gagal menyimpan ke Supabase Cloud: ${error.message}`);
     }
   }
 
@@ -699,17 +822,17 @@ export async function saveOfficialApplication(app: OfficialReportingApp, userEma
 }
 
 export async function deleteOfficialApplication(id: string, userEmail?: string): Promise<void> {
-  const list = await getOfficialApplications();
-  const filtered = list.filter(a => a.id !== id);
-
   const client = getSupabaseClient();
   if (client) {
-    try {
-      await client.from('official_reporting_apps').delete().eq('id', id);
-    } catch (e) {
-      console.warn('Failed delete official app from Supabase', e);
+    const { error } = await client.from('official_reporting_apps').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteOfficialApplication error:', error);
+      throw new Error(`Gagal menghapus dari Supabase Cloud: ${error.message}`);
     }
   }
+
+  const list = await getOfficialApplications();
+  const filtered = list.filter(a => a.id !== id);
 
   safeSetLocalStorage(KEYS.OFFICIAL, filtered);
   await logAudit('DELETE', 'official_reporting_apps', id, null, null, userEmail);
@@ -817,7 +940,34 @@ export async function getAdminUsers(): Promise<AppUser[]> {
   return raw ? JSON.parse(raw) : INITIAL_ADMIN_USERS;
 }
 
-export async function syncAllLocalDataToSupabase(): Promise<{ success: boolean; message: string }> {
+export interface SyncSummaryResult {
+  success: boolean;
+  message: string;
+  syncedCounts?: {
+    profile: number;
+    social: number;
+    hero: number;
+    internal: number;
+    official: number;
+  };
+}
+
+function formatSupabaseSyncError(tableName: string, err: any): string {
+  const msg = err?.message || '';
+  const code = err?.code || '';
+  if (msg.includes('Invalid path specified in request URL') || code === 'PGRST126') {
+    return `Tabel '${tableName}' tidak ditemukan di Supabase (${msg}). Pastikan URL Supabase berformat https://<ref>.supabase.co (tanpa /rest/v1) dan Skrip SQL di tab 'Supabase Database & SQL' sudah di-Run di SQL Editor Supabase.`;
+  }
+  if (msg.includes('does not exist') || code === 'PGRST205' || msg.includes('relation')) {
+    return `Tabel '${tableName}' belum dibuat di Supabase (${msg}). Salin Skrip SQL di menu 'Supabase Database & SQL' lalu jalankan di Supabase Dashboard → SQL Editor.`;
+  }
+  if (code === '42501' || msg.includes('row-level security') || msg.includes('permission denied')) {
+    return `Hak akses RLS untuk tabel '${tableName}' ditolak (${msg}). Jalankan skrip SQL lengkap termasuk kebijakan (policies) RLS.`;
+  }
+  return `Tabel '${tableName}' gagal: ${msg}${err?.hint ? ` (${err.hint})` : ''}`;
+}
+
+export async function syncAllLocalDataToSupabase(): Promise<SyncSummaryResult> {
   const client = getSupabaseClient();
   if (!client) {
     return { success: false, message: 'Supabase client belum terkonfigurasi. Masukkan URL dan Anon Key terlebih dahulu.' };
@@ -832,7 +982,7 @@ export async function syncAllLocalDataToSupabase(): Promise<{ success: boolean; 
 
     // 1. Upsert Profile
     if (profile) {
-      await client.from('website_profile').upsert({
+      const { error: profileErr } = await client.from('website_profile').upsert({
         id: profile.id || 'profile-rsud-almulk-001',
         hospital_name: profile.hospital_name,
         tagline: profile.tagline,
@@ -846,80 +996,114 @@ export async function syncAllLocalDataToSupabase(): Promise<{ success: boolean; 
         service_hours: profile.service_hours,
         updated_at: new Date().toISOString()
       });
+      if (profileErr) {
+        throw new Error(formatSupabaseSyncError('website_profile', profileErr));
+      }
     }
 
     // 2. Upsert Social Links
     if (social.length > 0) {
-      await client.from('social_links').upsert(
+      const { error: socialErr } = await client.from('social_links').upsert(
         social.map(s => ({
           id: s.id,
           platform: s.platform,
           title: s.title,
           url: s.url,
           icon: s.icon,
-          is_active: s.is_active,
-          display_order: s.display_order
+          is_active: s.is_active ?? true,
+          display_order: s.display_order,
+          created_at: s.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }))
       );
+      if (socialErr) {
+        throw new Error(formatSupabaseSyncError('social_links', socialErr));
+      }
     }
 
     // 3. Upsert Hero Media
     if (hero.length > 0) {
-      await client.from('hero_media').upsert(
-        hero.map(h => ({
-          id: h.id,
-          title: h.title,
-          description: h.description,
-          media_type: h.media_type,
-          media_url: h.media_url,
-          is_active: h.is_active,
-          display_order: h.display_order,
-          overlay_opacity: h.overlay_opacity
-        }))
-      );
+      const sanitizedHero = hero.map(h => ({
+        id: h.id,
+        title: h.title,
+        description: h.description,
+        media_type: h.media_type,
+        media_url: (h.media_url && h.media_url.startsWith('data:') && h.media_url.length > 200000)
+          ? 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=1920&auto=format&fit=crop&q=80'
+          : h.media_url,
+        thumbnail_url: h.thumbnail_url || null,
+        is_active: h.is_active ?? true,
+        display_order: h.display_order,
+        overlay_opacity: h.overlay_opacity ?? 65,
+        created_at: h.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      const { error: heroErr } = await client.from('hero_media').upsert(sanitizedHero);
+      if (heroErr) {
+        throw new Error(formatSupabaseSyncError('hero_media', heroErr));
+      }
     }
 
     // 4. Upsert Internal Apps
     if (internal.length > 0) {
-      await client.from('internal_applications').upsert(
-        internal.map(a => ({
-          id: a.id,
-          name: a.name,
-          slug: a.slug,
-          description: a.description,
-          category: a.category,
-          app_url: a.app_url,
-          logo_url: a.logo_url,
-          is_featured: a.is_featured,
-          status: a.status,
-          display_order: a.display_order,
-          click_count: a.click_count || 0
-        }))
-      );
+      const internalPayload = internal.map(a => ({
+        id: a.id,
+        name: a.name,
+        slug: a.slug,
+        description: a.description,
+        category: a.category,
+        unit: a.unit || 'Seksi Penunjang RS',
+        app_url: a.app_url,
+        logo_url: a.logo_url,
+        is_featured: Boolean(a.is_featured),
+        status: a.status || 'aktif',
+        display_order: a.display_order || 1,
+        click_count: a.click_count || 0,
+        created_at: a.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      const { error: internalErr } = await client.from('internal_applications').upsert(internalPayload);
+      if (internalErr) {
+        throw new Error(formatSupabaseSyncError('internal_applications', internalErr));
+      }
     }
 
     // 5. Upsert Official Apps
     if (official.length > 0) {
-      await client.from('official_reporting_apps').upsert(
-        official.map(a => ({
-          id: a.id,
-          name: a.name,
-          slug: a.slug,
-          description: a.description,
-          institution: a.institution,
-          category: a.category,
-          app_url: a.app_url,
-          logo_url: a.logo_url,
-          is_featured: a.is_featured,
-          status: a.status,
-          display_order: a.display_order,
-          click_count: a.click_count || 0
-        }))
-      );
+      const officialPayload = official.map(a => ({
+        id: a.id,
+        name: a.name,
+        slug: a.slug,
+        description: a.description,
+        institution: a.institution || 'Kementerian Kesehatan RI',
+        category: a.category || 'Pelaporan Rutin',
+        app_url: a.app_url,
+        logo_url: a.logo_url,
+        is_featured: Boolean(a.is_featured),
+        status: a.status || 'aktif',
+        display_order: a.display_order || 1,
+        click_count: a.click_count || 0,
+        created_at: a.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      const { error: officialErr } = await client.from('official_reporting_apps').upsert(officialPayload);
+      if (officialErr) {
+        throw new Error(formatSupabaseSyncError('official_reporting_apps', officialErr));
+      }
     }
 
     notifyDataChange('all');
-    return { success: true, message: 'Seluruh data profil, hero media, dan aplikasi berhasil disinkronkan ke Supabase Cloud.' };
+    return { 
+      success: true, 
+      message: `Seluruh data berhasil disinkronkan ke Supabase Cloud: Profil, ${internal.length} Aplikasi Internal, ${official.length} Pelaporan Resmi, ${hero.length} Hero Media, dan ${social.length} Tautan Sosial terintegrasi penuh ke Cloud Database!`,
+      syncedCounts: {
+        profile: profile ? 1 : 0,
+        social: social.length,
+        hero: hero.length,
+        internal: internal.length,
+        official: official.length
+      }
+    };
   } catch (err: any) {
     console.error('Error syncing to Supabase:', err);
     return { success: false, message: err.message || 'Gagal sinkronisasi data ke Supabase.' };
