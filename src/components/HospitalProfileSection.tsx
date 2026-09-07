@@ -4,7 +4,6 @@ import {
   MapPin, 
   Phone, 
   Mail, 
-  Clock, 
   Globe, 
   ShieldAlert, 
   CheckCircle, 
@@ -163,19 +162,6 @@ export const HospitalProfileSection: React.FC<HospitalProfileSectionProps> = ({ 
                     <div className="text-[10px] font-bold uppercase text-slate-400">Email Resmi</div>
                     <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
                       {profile.email || 'info@rsudalmulk.sukabumikota.go.id'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Hours */}
-                <div className="flex items-start gap-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-cyan-300 shrink-0">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold uppercase text-slate-400">Jam Pelayanan</div>
-                    <p className="text-xs sm:text-sm text-slate-200 mt-0.5 leading-snug">
-                      {profile.service_hours || 'IGD & Rawat Inap: 24 Jam | Poliklinik: Senin - Sabtu (07.30 - 14.00 WIB)'}
                     </p>
                   </div>
                 </div>
