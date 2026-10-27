@@ -220,32 +220,37 @@ export async function getWebsiteProfile(): Promise<WebsiteProfile> {
 }
 
 export async function updateWebsiteProfile(profile: WebsiteProfile, userEmail?: string): Promise<WebsiteProfile> {
-  const client = getSupabaseClient();
-  if (client) {
-    const payload = {
-      id: profile.id || 'profile-rsud-almulk-001',
-      hospital_name: profile.hospital_name,
-      tagline: profile.tagline,
-      description: profile.description,
-      logo_url: profile.logo_url,
-      address: profile.address,
-      phone: profile.phone,
-      emergency_phone: profile.emergency_phone,
-      email: profile.email,
-      website_url: profile.website_url,
-      service_hours: profile.service_hours,
-      updated_at: new Date().toISOString()
-    };
-    const { error } = await client.from('website_profile').upsert(payload);
-    if (error) {
-      console.error('Supabase updateWebsiteProfile error:', error);
-      throw new Error(`Gagal menyimpan profil ke Supabase: ${error.message}`);
-    }
-  }
-
+  // Always persist locally first so edits are never lost
   safeSetLocalStorage(KEYS.PROFILE, profile);
   await logAudit('UPDATE', 'website_profile', profile.id, null, profile, userEmail);
   notifyDataChange('profile');
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const payload = {
+        id: profile.id || 'profile-rsud-almulk-001',
+        hospital_name: profile.hospital_name,
+        tagline: profile.tagline,
+        description: profile.description,
+        logo_url: profile.logo_url,
+        address: profile.address,
+        phone: profile.phone,
+        emergency_phone: profile.emergency_phone,
+        email: profile.email,
+        website_url: profile.website_url,
+        service_hours: profile.service_hours,
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await client.from('website_profile').upsert(payload);
+      if (error) {
+        console.warn('Supabase updateWebsiteProfile notice (saved locally):', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase updateWebsiteProfile network notice:', e);
+    }
+  }
+
   return profile;
 }
 
@@ -274,29 +279,34 @@ export async function getSocialLinks(): Promise<SocialLink[]> {
 }
 
 export async function saveSocialLinks(links: SocialLink[], userEmail?: string): Promise<SocialLink[]> {
-  const client = getSupabaseClient();
-  if (client) {
-    const payload = links.map(s => ({
-      id: s.id,
-      platform: s.platform,
-      title: s.title,
-      url: s.url,
-      icon: s.icon,
-      is_active: s.is_active ?? true,
-      display_order: s.display_order,
-      created_at: s.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
-    const { error } = await client.from('social_links').upsert(payload);
-    if (error) {
-      console.error('Supabase saveSocialLinks error:', error);
-      throw new Error(`Gagal menyimpan tautan medsos ke Supabase: ${error.message}`);
-    }
-  }
-
+  // Always persist locally first
   safeSetLocalStorage(KEYS.SOCIAL, links);
   await logAudit('UPDATE', 'social_links', 'bulk', null, { count: links.length }, userEmail);
   notifyDataChange('social');
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const payload = links.map(s => ({
+        id: s.id,
+        platform: s.platform,
+        title: s.title,
+        url: s.url,
+        icon: s.icon,
+        is_active: s.is_active ?? true,
+        display_order: s.display_order,
+        created_at: s.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      const { error } = await client.from('social_links').upsert(payload);
+      if (error) {
+        console.warn('Supabase saveSocialLinks notice (saved locally):', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase saveSocialLinks network notice:', e);
+    }
+  }
+
   return links;
 }
 
@@ -548,35 +558,39 @@ export async function saveHeroMedia(mediaList: HeroMedia[], userEmail?: string):
     }
   }
 
-  // 3. Save to Supabase (if connected)
-  const client = getSupabaseClient();
-  if (client) {
-    const payload = mediaList.map(h => ({
-      id: h.id,
-      title: h.title,
-      description: h.description,
-      media_type: h.media_type,
-      media_url: (h.media_url && h.media_url.startsWith('data:') && h.media_url.length > 200000)
-        ? 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=1920&auto=format&fit=crop&q=80'
-        : h.media_url,
-      thumbnail_url: h.thumbnail_url || null,
-      is_active: h.is_active ?? true,
-      display_order: h.display_order,
-      overlay_opacity: h.overlay_opacity ?? 65,
-      created_at: h.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
-    const { error } = await client.from('hero_media').upsert(payload);
-    if (error) {
-      console.error('Supabase saveHeroMedia error:', error);
-      throw new Error(`Gagal menyimpan media hero ke Supabase: ${error.message}`);
-    }
-  }
-
-  // 4. Safe LocalStorage sync
+  // 3. Safe LocalStorage sync immediately
   safeSetLocalStorage(KEYS.HERO, mediaList);
   await logAudit('UPDATE', 'hero_media', 'bulk', null, { count: mediaList.length }, userEmail);
   notifyDataChange('hero');
+
+  // 4. Save to Supabase (if connected)
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const payload = mediaList.map(h => ({
+        id: h.id,
+        title: h.title,
+        description: h.description,
+        media_type: h.media_type,
+        media_url: (h.media_url && h.media_url.startsWith('data:') && h.media_url.length > 200000)
+          ? 'https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=1920&auto=format&fit=crop&q=80'
+          : h.media_url,
+        thumbnail_url: h.thumbnail_url || null,
+        is_active: h.is_active ?? true,
+        display_order: h.display_order,
+        overlay_opacity: h.overlay_opacity ?? 65,
+        created_at: h.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      const { error } = await client.from('hero_media').upsert(payload);
+      if (error) {
+        console.warn('Supabase saveHeroMedia notice (saved locally):', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase saveHeroMedia network notice:', e);
+    }
+  }
+
   return mediaList;
 }
 
@@ -585,25 +599,26 @@ export async function deleteHeroMedia(id: string, userEmail?: string): Promise<v
   await deleteHeroMediaFromIndexedDB(id);
   RUNTIME_MEDIA_STORE.delete(id);
 
-  // 2. Update list
+  // 2. Update list locally first
   const list = await getHeroMedia();
   const filtered = list.filter(m => m.id !== id);
-
-  // 3. Delete from Supabase (if connected)
-  const client = getSupabaseClient();
-  if (client) {
-    const { error } = await client.from('hero_media').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteHeroMedia error:', error);
-      throw new Error(`Gagal menghapus hero media dari Supabase: ${error.message}`);
-    }
-  }
-
-  // 4. Update IndexedDB & LocalStorage
   await saveHeroMediaToIndexedDB(filtered);
   safeSetLocalStorage(KEYS.HERO, filtered);
   await logAudit('DELETE', 'hero_media', id, null, null, userEmail);
   notifyDataChange('hero');
+
+  // 3. Delete from Supabase (if connected)
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from('hero_media').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase deleteHeroMedia notice:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase deleteHeroMedia network notice:', e);
+    }
+  }
 }
 
 // ----------------------------------------------------
@@ -665,31 +680,7 @@ export async function getInternalApplications(): Promise<InternalApplication[]> 
 }
 
 export async function saveInternalApplication(app: InternalApplication, userEmail?: string): Promise<InternalApplication> {
-  const client = getSupabaseClient();
-  if (client) {
-    const payload = {
-      id: app.id,
-      name: app.name,
-      slug: app.slug,
-      description: app.description,
-      category: app.category,
-      unit: app.unit || 'Seksi Penunjang RS',
-      app_url: app.app_url,
-      logo_url: app.logo_url,
-      is_featured: Boolean(app.is_featured),
-      status: app.status || 'aktif',
-      display_order: app.display_order || 1,
-      click_count: app.click_count || 0,
-      created_at: app.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    const { error } = await client.from('internal_applications').upsert(payload);
-    if (error) {
-      console.error('Supabase saveInternalApplication error:', error);
-      throw new Error(`Gagal menyimpan ke Supabase Cloud: ${error.message}`);
-    }
-  }
-
+  // 1. Always update local storage first so user edits are immediately preserved
   const list = await getInternalApplications();
   const index = list.findIndex(a => a.id === app.id);
   if (index >= 0) {
@@ -701,25 +692,59 @@ export async function saveInternalApplication(app: InternalApplication, userEmai
   safeSetLocalStorage(KEYS.INTERNAL, list);
   await logAudit('UPDATE', 'internal_applications', app.id, null, { name: app.name }, userEmail);
   notifyDataChange('internal');
+
+  // 2. Sync to Supabase if connected
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const payload = {
+        id: app.id,
+        name: app.name,
+        slug: app.slug,
+        description: app.description,
+        category: app.category,
+        unit: app.unit || 'Seksi Penunjang RS',
+        app_url: app.app_url,
+        logo_url: app.logo_url,
+        is_featured: Boolean(app.is_featured),
+        status: app.status || 'aktif',
+        display_order: app.display_order || 1,
+        click_count: app.click_count || 0,
+        created_at: app.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await client.from('internal_applications').upsert(payload);
+      if (error) {
+        console.warn('Supabase saveInternalApplication notice (data safe locally):', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase saveInternalApplication network notice:', e);
+    }
+  }
+
   return app;
 }
 
 export async function deleteInternalApplication(id: string, userEmail?: string): Promise<void> {
-  const client = getSupabaseClient();
-  if (client) {
-    const { error } = await client.from('internal_applications').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteInternalApplication error:', error);
-      throw new Error(`Gagal menghapus dari Supabase Cloud: ${error.message}`);
-    }
-  }
-
+  // 1. Delete from local storage first
   const list = await getInternalApplications();
   const filtered = list.filter(a => a.id !== id);
-
   safeSetLocalStorage(KEYS.INTERNAL, filtered);
   await logAudit('DELETE', 'internal_applications', id, null, null, userEmail);
   notifyDataChange('internal');
+
+  // 2. Delete from Supabase if connected
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from('internal_applications').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase deleteInternalApplication notice:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase deleteInternalApplication network notice:', e);
+    }
+  }
 }
 
 export async function reorderInternalApplications(orderedIds: string[], userEmail?: string): Promise<void> {
@@ -782,31 +807,7 @@ export async function getOfficialApplications(): Promise<OfficialReportingApp[]>
 }
 
 export async function saveOfficialApplication(app: OfficialReportingApp, userEmail?: string): Promise<OfficialReportingApp> {
-  const client = getSupabaseClient();
-  if (client) {
-    const payload = {
-      id: app.id,
-      name: app.name,
-      slug: app.slug,
-      description: app.description,
-      institution: app.institution || 'Kementerian Kesehatan RI',
-      category: app.category || 'Pelaporan Rutin',
-      app_url: app.app_url,
-      logo_url: app.logo_url,
-      is_featured: Boolean(app.is_featured),
-      status: app.status || 'aktif',
-      display_order: app.display_order || 1,
-      click_count: app.click_count || 0,
-      created_at: app.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    const { error } = await client.from('official_reporting_apps').upsert(payload);
-    if (error) {
-      console.error('Supabase saveOfficialApplication error:', error);
-      throw new Error(`Gagal menyimpan ke Supabase Cloud: ${error.message}`);
-    }
-  }
-
+  // 1. Always update local storage first so user edits are immediately preserved
   const list = await getOfficialApplications();
   const index = list.findIndex(a => a.id === app.id);
   if (index >= 0) {
@@ -818,25 +819,59 @@ export async function saveOfficialApplication(app: OfficialReportingApp, userEma
   safeSetLocalStorage(KEYS.OFFICIAL, list);
   await logAudit('UPDATE', 'official_reporting_apps', app.id, null, { name: app.name }, userEmail);
   notifyDataChange('official');
+
+  // 2. Sync to Supabase if connected
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const payload = {
+        id: app.id,
+        name: app.name,
+        slug: app.slug,
+        description: app.description,
+        institution: app.institution || 'Kementerian Kesehatan RI',
+        category: app.category || 'Pelaporan Rutin',
+        app_url: app.app_url,
+        logo_url: app.logo_url,
+        is_featured: Boolean(app.is_featured),
+        status: app.status || 'aktif',
+        display_order: app.display_order || 1,
+        click_count: app.click_count || 0,
+        created_at: app.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await client.from('official_reporting_apps').upsert(payload);
+      if (error) {
+        console.warn('Supabase saveOfficialApplication notice (data safe locally):', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase saveOfficialApplication network notice:', e);
+    }
+  }
+
   return app;
 }
 
 export async function deleteOfficialApplication(id: string, userEmail?: string): Promise<void> {
-  const client = getSupabaseClient();
-  if (client) {
-    const { error } = await client.from('official_reporting_apps').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteOfficialApplication error:', error);
-      throw new Error(`Gagal menghapus dari Supabase Cloud: ${error.message}`);
-    }
-  }
-
+  // 1. Delete from local storage first
   const list = await getOfficialApplications();
   const filtered = list.filter(a => a.id !== id);
-
   safeSetLocalStorage(KEYS.OFFICIAL, filtered);
   await logAudit('DELETE', 'official_reporting_apps', id, null, null, userEmail);
   notifyDataChange('official');
+
+  // 2. Delete from Supabase if connected
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from('official_reporting_apps').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase deleteOfficialApplication notice:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase deleteOfficialApplication network notice:', e);
+    }
+  }
 }
 
 // ----------------------------------------------------
@@ -955,14 +990,11 @@ export interface SyncSummaryResult {
 function formatSupabaseSyncError(tableName: string, err: any): string {
   const msg = err?.message || '';
   const code = err?.code || '';
-  if (msg.includes('Invalid path specified in request URL') || code === 'PGRST126') {
-    return `Tabel '${tableName}' tidak ditemukan di Supabase (${msg}). Pastikan URL Supabase berformat https://<ref>.supabase.co (tanpa /rest/v1) dan Skrip SQL di tab 'Supabase Database & SQL' sudah di-Run di SQL Editor Supabase.`;
-  }
-  if (msg.includes('does not exist') || code === 'PGRST205' || msg.includes('relation')) {
-    return `Tabel '${tableName}' belum dibuat di Supabase (${msg}). Salin Skrip SQL di menu 'Supabase Database & SQL' lalu jalankan di Supabase Dashboard → SQL Editor.`;
+  if (msg.includes('Invalid path') || code === 'PGRST126' || msg.includes('does not exist') || code === 'PGRST205' || code === '42P01') {
+    return `Tabel '${tableName}' belum dibuat di Supabase (${msg}). Salin Skrip SQL di menu 'Supabase Database & SQL' lalu jalankan (klik Run) di Supabase Dashboard → SQL Editor.`;
   }
   if (code === '42501' || msg.includes('row-level security') || msg.includes('permission denied')) {
-    return `Hak akses RLS untuk tabel '${tableName}' ditolak (${msg}). Jalankan skrip SQL lengkap termasuk kebijakan (policies) RLS.`;
+    return `Hak akses RLS untuk tabel '${tableName}' ditolak (${msg}). Jalankan skrip SQL lengkap termasuk kebijakan (policies) RLS di SQL Editor Supabase.`;
   }
   return `Tabel '${tableName}' gagal: ${msg}${err?.hint ? ` (${err.hint})` : ''}`;
 }
@@ -974,6 +1006,25 @@ export async function syncAllLocalDataToSupabase(): Promise<SyncSummaryResult> {
   }
 
   try {
+    // 0. Pre-check if tables exist in Supabase database
+    const preCheck = await client.from('website_profile').select('id').limit(1);
+    if (preCheck.error) {
+      const errMsg = preCheck.error.message || '';
+      const errCode = preCheck.error.code || '';
+      const isMissing = errMsg.includes('Invalid path') || 
+                        errCode === 'PGRST126' || 
+                        errMsg.includes('does not exist') || 
+                        errCode === 'PGRST205' || 
+                        errCode === '42P01';
+
+      if (isMissing) {
+        return {
+          success: false,
+          message: 'Tabel database di Supabase belum dibuat. Salin Skrip SQL di tab "Supabase Database & SQL" lalu jalankan (klik Run) di SQL Editor Supabase Anda terlebih dahulu.'
+        };
+      }
+    }
+
     const profile = await getWebsiteProfile();
     const social = await getSocialLinks();
     const hero = await getHeroMedia();

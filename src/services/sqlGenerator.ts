@@ -8,7 +8,8 @@ export function generateSupabaseSchemaSQL(): string {
 -- SUPABASE POSTGRESQL COMPLETE DATABASE SCHEMA, RLS & SEED DATA
 -- ==========================================================
 
--- 1. Enable UUID Extension
+-- 1. Enable UUID Extension (pgcrypto / uuid-ossp)
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. CREATE TABLE: website_profile
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.website_profile (
 
 -- 3. CREATE TABLE: social_links
 CREATE TABLE IF NOT EXISTS public.social_links (
-    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     platform TEXT NOT NULL CHECK (platform IN ('instagram', 'facebook', 'youtube', 'tiktok', 'whatsapp', 'website')),
     title TEXT NOT NULL,
     url TEXT NOT NULL,
@@ -42,7 +43,7 @@ CREATE TABLE IF NOT EXISTS public.social_links (
 
 -- 4. CREATE TABLE: hero_media
 CREATE TABLE IF NOT EXISTS public.hero_media (
-    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     title TEXT NOT NULL,
     description TEXT,
     media_type TEXT NOT NULL CHECK (media_type IN ('image', 'video', 'slideshow')),
@@ -57,7 +58,7 @@ CREATE TABLE IF NOT EXISTS public.hero_media (
 
 -- 5. CREATE TABLE: internal_applications
 CREATE TABLE IF NOT EXISTS public.internal_applications (
-    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL,
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS public.internal_applications (
 
 -- 6. CREATE TABLE: official_reporting_apps
 CREATE TABLE IF NOT EXISTS public.official_reporting_apps (
-    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL,
@@ -93,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.official_reporting_apps (
 
 -- 7. CREATE TABLE: application_clicks
 CREATE TABLE IF NOT EXISTS public.application_clicks (
-    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     application_id TEXT NOT NULL,
     application_name TEXT NOT NULL,
     application_type TEXT NOT NULL CHECK (application_type IN ('internal', 'official')),
@@ -104,7 +105,7 @@ CREATE TABLE IF NOT EXISTS public.application_clicks (
 
 -- 8. CREATE TABLE: audit_logs
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     user_id TEXT,
     user_email TEXT,
     action TEXT NOT NULL,
@@ -339,46 +340,48 @@ ON CONFLICT (id) DO UPDATE SET
 -- ==========================================================
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'website_profile'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.website_profile;
-  END IF;
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = 'website_profile'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.website_profile;
+    END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'social_links'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.social_links;
-  END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = 'social_links'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.social_links;
+    END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'hero_media'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.hero_media;
-  END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = 'hero_media'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.hero_media;
+    END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'internal_applications'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.internal_applications;
-  END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = 'internal_applications'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.internal_applications;
+    END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'official_reporting_apps'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.official_reporting_apps;
-  END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = 'official_reporting_apps'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.official_reporting_apps;
+    END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'application_clicks'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.application_clicks;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = 'application_clicks'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.application_clicks;
+    END IF;
   END IF;
 END $$;
 `;

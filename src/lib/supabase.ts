@@ -215,14 +215,31 @@ export async function testSupabaseConnection(): Promise<SupabaseConnectionTestRe
 
     if (profileRes.error) {
       const errMsg = profileRes.error.message || '';
-      const isInvalidPath = errMsg.includes('Invalid path') || profileRes.error.code === 'PGRST126';
-      const isTableMissing = errMsg.includes('does not exist') || profileRes.error.code === 'PGRST205' || isInvalidPath;
+      const errCode = profileRes.error.code || '';
+      
+      const isAuthError = errMsg.toLowerCase().includes('api key') || 
+                          errMsg.toLowerCase().includes('jwt') || 
+                          errCode === 'PGRST301';
+
+      if (isAuthError) {
+        return {
+          connected: false,
+          tablesReady: false,
+          message: `Kredensial Supabase ditolak: ${errMsg}. Periksa kembali Anon Key Supabase Anda di Project Settings → API.`
+        };
+      }
+
+      const isTableMissing = errMsg.includes('Invalid path') || 
+                             errCode === 'PGRST126' || 
+                             errMsg.includes('does not exist') || 
+                             errCode === 'PGRST205' || 
+                             errCode === '42P01';
 
       return {
-        connected: !isInvalidPath,
+        connected: true, // Server endpoint is reachable and API key accepted
         tablesReady: false,
         message: isTableMissing
-          ? `Tabel database di Supabase belum dibuat (${errMsg}). Jalankan Skrip SQL di SQL Editor Supabase terlebih dahulu.`
+          ? `Koneksi ke Supabase berhasil! Namun tabel database belum dibuat. Jalankan Skrip SQL di SQL Editor Supabase terlebih dahulu.`
           : `Koneksi Supabase aktif, namun tabel belum siap: ${errMsg}`,
         details: 'Salin Skrip SQL di menu "Supabase Database & SQL", lalu jalankan di Supabase Dashboard → SQL Editor.'
       };
@@ -250,7 +267,7 @@ export async function testSupabaseConnection(): Promise<SupabaseConnectionTestRe
     return {
       connected: false,
       tablesReady: false,
-      message: `Gagal terhubung ke Supabase: ${err.message || 'Network error'}`
+      message: `Gagal terhubung ke Supabase: ${err.message || 'Periksa koneksi internet atau format URL'}`
     };
   }
 }

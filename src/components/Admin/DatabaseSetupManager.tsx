@@ -111,25 +111,30 @@ export const DatabaseSetupManager: React.FC<DatabaseSetupManagerProps> = ({ onDa
 
           Swal.fire({
             icon: 'warning',
-            title: 'Kredensial Tersimpan, Namun Tabel Belum Siap',
+            title: 'Kredensial Tersimpan, Namun Tabel Belum Dibuat',
             html: `
               <p class="text-xs text-slate-600 mb-3">${diag.message}</p>
-              <div class="p-3 bg-amber-50 rounded-xl text-left text-xs text-amber-900 space-y-1">
+              <div class="p-3 bg-amber-50 rounded-xl text-left text-xs text-amber-900 space-y-1.5 mb-4">
                 <div><strong>Langkah Selanjutnya:</strong></div>
                 <div>1. Klik tombol di bawah untuk membuka SQL Editor Supabase.</div>
-                <div>2. Salin Skrip SQL dari halaman ini dan tempel di SQL Editor Supabase.</div>
+                <div>2. Salin Skrip SQL dari halaman ini dan tempel di SQL Editor.</div>
                 <div>3. Klik tombol <strong>Run</strong> di Supabase.</div>
                 <div>4. Kembali ke sini dan klik <strong>Sinkronkan Semua Data</strong>.</div>
               </div>
+              <div class="flex justify-center">
+                <a 
+                  href="${sqlEditorUrl}" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style="display:inline-flex; align-items:center; gap:6px; background-color:#0284c7; color:#ffffff; padding:10px 20px; border-radius:12px; font-weight:bold; font-size:12px; text-decoration:none;"
+                >
+                  Buka SQL Editor Supabase ↗
+                </a>
+              </div>
             `,
+            showConfirmButton: false,
             showCancelButton: true,
-            confirmButtonText: 'Buka SQL Editor Supabase',
-            confirmButtonColor: '#0284c7',
             cancelButtonText: 'Tutup'
-          }).then((res) => {
-            if (res.isConfirmed) {
-              window.open(sqlEditorUrl, '_blank', 'noopener,noreferrer');
-            }
           });
         } else {
           Swal.fire({
@@ -190,22 +195,27 @@ export const DatabaseSetupManager: React.FC<DatabaseSetupManagerProps> = ({ onDa
           title: 'Tabel Belum Siap di Supabase',
           html: `
             <p class="text-xs text-slate-600 mb-3">${result.message}</p>
-            <div class="p-3 bg-amber-50 rounded-xl text-left text-xs text-amber-900 space-y-1">
+            <div class="p-3 bg-amber-50 rounded-xl text-left text-xs text-amber-900 space-y-1.5 mb-4">
               <div><strong>Cara Mengatasi:</strong></div>
               <div>1. Klik tombol di bawah untuk membuka SQL Editor Supabase.</div>
               <div>2. Salin Skrip SQL di bawah dan tempel di editor Supabase.</div>
               <div>3. Klik tombol <strong>Run</strong> untuk membuat tabel database.</div>
               <div>4. Klik <strong>Sinkronkan Semua Data</strong> kembali.</div>
             </div>
+            <div class="flex justify-center">
+              <a 
+                href="${sqlEditorUrl}" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                style="display:inline-flex; align-items:center; gap:6px; background-color:#0284c7; color:#ffffff; padding:10px 20px; border-radius:12px; font-weight:bold; font-size:12px; text-decoration:none;"
+              >
+                Buka SQL Editor Supabase ↗
+              </a>
+            </div>
           `,
+          showConfirmButton: false,
           showCancelButton: true,
-          confirmButtonText: 'Buka SQL Editor Supabase',
-          confirmButtonColor: '#0284c7',
           cancelButtonText: 'Tutup'
-        }).then((res) => {
-          if (res.isConfirmed) {
-            window.open(sqlEditorUrl, '_blank', 'noopener,noreferrer');
-          }
         });
       }
     } catch (err: any) {
@@ -219,18 +229,23 @@ export const DatabaseSetupManager: React.FC<DatabaseSetupManagerProps> = ({ onDa
         title: 'Gagal Mengirim Data ke Supabase',
         html: `
           <p class="text-xs text-slate-600 mb-3">${err.message || 'Terjadi kesalahan saat menghubungi server Supabase.'}</p>
-          <div class="p-3 bg-slate-100 rounded-xl text-left text-xs text-slate-700">
+          <div class="p-3 bg-slate-100 rounded-xl text-left text-xs text-slate-700 mb-4">
             Pastikan skrip skema database telah dijalankan di SQL Editor Supabase agar seluruh tabel tersedia.
           </div>
+          <div class="flex justify-center">
+            <a 
+              href="${sqlEditorUrl}" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              style="display:inline-flex; align-items:center; gap:6px; background-color:#0284c7; color:#ffffff; padding:10px 20px; border-radius:12px; font-weight:bold; font-size:12px; text-decoration:none;"
+            >
+              Buka SQL Editor Supabase ↗
+            </a>
+          </div>
         `,
+        showConfirmButton: false,
         showCancelButton: true,
-        confirmButtonText: 'Buka SQL Editor Supabase',
-        confirmButtonColor: '#0284c7',
         cancelButtonText: 'Tutup'
-      }).then((res) => {
-        if (res.isConfirmed) {
-          window.open(sqlEditorUrl, '_blank', 'noopener,noreferrer');
-        }
       });
     } finally {
       setSyncing(false);
